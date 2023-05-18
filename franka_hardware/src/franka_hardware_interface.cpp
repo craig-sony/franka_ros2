@@ -50,7 +50,11 @@ std::vector<CommandInterface> FrankaHardwareInterface::export_command_interfaces
   command_interfaces.reserve(info_.joints.size());
   for (auto i = 0U; i < info_.joints.size(); i++) {
     command_interfaces.emplace_back(CommandInterface(
-        info_.joints[i].name, hardware_interface::HW_IF_EFFORT, &hw_commands_.at(i)));
+        info_.joints[i].name, hardware_interface::HW_IF_EFFORT, &hw_commands_efforts_[i]));
+    command_interfaces.emplace_back(CommandInterface(
+        info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_commands_positions_[i]));
+    command_interfaces.emplace_back(CommandInterface(
+        info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_commands_velocities_[i]));
   }
   return command_interfaces;
 }
@@ -104,11 +108,24 @@ CallbackReturn FrankaHardwareInterface::on_init(const hardware_interface::Hardwa
   }
 
   for (const auto& joint : info_.joints) {
-    if (joint.command_interfaces.size() != 1) {
-      RCLCPP_FATAL(getLogger(), "Joint '%s' has %zu command interfaces found. 1 expected.",
+    if (joint.command_interfaces.size() != 3) {
+      RCLCPP_FATAL(getLogger(), "Joint '%s' has %zu command interfaces found. 3 expected.",
                    joint.name.c_str(), joint.command_interfaces.size());
       return CallbackReturn::ERROR;
     }
+
+    if (!(joint.command_interfaces[0].name == hardware_interface::HW_IF_POSITION ||
+          joint.command_interfaces[0].name == hardware_interface::HW_IF_VELOCITY ||
+          joint.command_interfaces[0].name == hardware_interface::HW_IF_ACCELERATION))
+    {
+      RCLCPP_FATAL(
+        getLogger(),
+        "Joint '%s' has %s command interface. Expected %s, %s, or %s.", joint.name.c_str(),
+        joint.command_interfaces[0].name.c_str(), hardware_interface::HW_IF_POSITION,
+        hardware_interface::HW_IF_VELOCITY, hardware_interface::HW_IF_ACCELERATION);
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+
     if (joint.command_interfaces[0].name != hardware_interface::HW_IF_EFFORT) {
       RCLCPP_FATAL(getLogger(), "Joint '%s' has unexpected command interface '%s'. Expected '%s'",
                    joint.name.c_str(), joint.command_interfaces[0].name.c_str(),
